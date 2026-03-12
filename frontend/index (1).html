@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RailFlow — Smart Track & Platform Mapping</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080b0f; --panel:#0d1117; --border:#1a2030;
+  --amber:#f5a623; --amber2:#ffcc70; --green:#39d353;
+  --red:#ff4545; --blue:#4a9eff; --purple:#c084fc;
+  --text:#c8d4e0; --muted:#3a4a5a;
+  --mono:'Share Tech Mono',monospace; --sans:'Barlow Condensed',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px)}
+
+/* HEADER */
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 24px;
+  background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.logo{font-family:var(--sans);font-size:20px;font-weight:900;letter-spacing:4px;color:var(--amber)}
+.logo span{color:var(--text);font-weight:300}
+.hstats{display:flex;gap:20px;align-items:center}
+.hstat{display:flex;flex-direction:column;align-items:center;font-size:9px;color:var(--muted);letter-spacing:1px}
+.hstat strong{font-size:20px;font-family:var(--mono);line-height:1;color:var(--text)}
+.hstat.g strong{color:var(--green)} .hstat.a strong{color:var(--amber)} .hstat.r strong{color:var(--red)}
+.simclock{font-family:var(--sans);font-size:22px;font-weight:700;color:var(--amber);letter-spacing:2px;
+  border-left:1px solid var(--border);padding-left:20px}
+.simclock small{display:block;font-size:9px;color:var(--muted);letter-spacing:2px;font-family:var(--mono);text-align:right}
+
+/* CONTROLS */
+.controls{display:flex;align-items:center;gap:12px;padding:10px 24px;
+  background:#0a0d12;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.btn{padding:6px 16px;border:1px solid var(--border);background:transparent;
+  color:var(--text);font-family:var(--mono);font-size:11px;cursor:pointer;
+  letter-spacing:1px;transition:all .2s}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn.active{background:var(--amber);color:#000;border-color:var(--amber);font-weight:700}
+.btn.play{border-color:var(--green);color:var(--green)}
+.btn.play:hover,.btn.play.active{background:var(--green);color:#000}
+.btn.stop{border-color:var(--red);color:var(--red)}
+.btn.stop:hover{background:var(--red);color:#fff}
+.speed-label{font-size:9px;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.progress-wrap{flex:1;min-width:200px;height:4px;background:var(--border);position:relative}
+.progress-bar{height:100%;background:var(--amber);transition:width .1s;width:0%}
+.progress-pct{font-size:9px;color:var(--muted);min-width:30px;text-align:right}
+.phase-badge{padding:4px 10px;font-size:10px;font-family:var(--sans);letter-spacing:2px;
+  font-weight:700;border-radius:2px;text-transform:uppercase}
+
+/* MAIN GRID */
+.main-grid{display:grid;grid-template-columns:1fr 300px;gap:1px;background:var(--border)}
+.panel{background:var(--panel);padding:0}
+.ptitle{font-family:var(--sans);font-size:10px;font-weight:500;letter-spacing:3px;
+  text-transform:uppercase;color:var(--muted);padding:12px 16px 8px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.ptitle::before{content:'';display:inline-block;width:3px;height:12px;background:var(--amber)}
+
+/* MAP */
+#map-svg{width:100%;height:480px;display:block;
+  background:radial-gradient(ellipse at 50% 45%,#0d1828 0%,#060809 100%)}
+
+/* EVENT LOG */
+#event-log{height:440px;overflow-y:auto;padding:8px}
+.event{padding:8px 10px;margin-bottom:4px;border-left:3px solid var(--muted);
+  font-size:11px;line-height:1.5;animation:slideIn .3s ease;border-radius:0 2px 2px 0}
+.event.info{border-color:var(--blue);background:rgba(74,158,255,.06)}
+.event.warn{border-color:var(--amber);background:rgba(245,166,35,.08)}
+.event.danger{border-color:var(--red);background:rgba(255,69,69,.08)}
+.event.success{border-color:var(--green);background:rgba(57,211,83,.06)}
+.event .etime{color:var(--amber);font-size:10px;display:block;margin-bottom:2px}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}}
+
+/* TRAIN STATUS CARDS */
+.status-row{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border)}
+.tcard{background:var(--panel);padding:10px 12px;position:relative;overflow:hidden}
+.tcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.tcard .tc-name{font-family:var(--sans);font-size:13px;font-weight:700;margin-bottom:4px}
+.tcard .tc-stat{font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:2px}
+.tcard .tc-val{font-size:11px;margin-bottom:4px}
+.tcard .tc-badge{display:inline-block;padding:2px 6px;font-size:9px;font-family:var(--sans);
+  font-weight:700;letter-spacing:1px;border-radius:1px}
+.badge-moving{background:rgba(57,211,83,.15);color:var(--green);border:1px solid rgba(57,211,83,.3)}
+.badge-waiting{background:rgba(245,166,35,.15);color:var(--amber);border:1px solid rgba(245,166,35,.3)}
+.badge-arrived{background:rgba(74,158,255,.15);color:var(--blue);border:1px solid rgba(74,158,255,.3)}
+.badge-pending{background:rgba(100,100,100,.1);color:#556;border:1px solid #223}
+
+/* BOTTOM GRID */
+.bottom-grid{display:grid;grid-template-columns:1fr 380px;gap:1px;background:var(--border)}
+
+/* PLATFORM TIMELINE */
+.tl-wrap{padding:12px 16px;overflow-x:auto}
+.tl-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;height:40px}
+.tl-lbl{width:90px;flex-shrink:0;font-size:10px;color:var(--muted);
+  font-family:var(--sans);letter-spacing:1px;text-align:right;padding-right:10px}
+.tl-track{flex:1;height:32px;position:relative;background:rgba(20,30,45,.5);
+  border:1px solid var(--border);border-radius:1px;min-width:500px}
+.tl-block{position:absolute;top:3px;bottom:3px;border-radius:2px;
+  display:flex;align-items:center;padding:0 6px;font-size:10px;
+  font-family:var(--sans);font-weight:700;white-space:nowrap;overflow:hidden;
+  cursor:pointer;transition:all .3s}
+.tl-tick{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,.05)}
+.tl-cursor{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--amber);
+  opacity:.8;transition:left .1s;z-index:5}
+.tl-cursor::before{content:'';position:absolute;top:-4px;left:-4px;
+  width:10px;height:10px;background:var(--amber);border-radius:50%}
+.tl-hdr{margin-left:100px;margin-bottom:4px;position:relative;
+  min-width:500px;height:16px;font-size:9px;color:var(--muted)}
+
+/* TIME SAVED */
+.tsaved{padding:16px}
+.ts-hero{text-align:center;padding:16px 0 12px;border-bottom:1px solid var(--border);margin-bottom:14px}
+.ts-big{font-family:var(--sans);font-size:52px;font-weight:900;color:var(--green);
+  line-height:1;display:block}
+.ts-label{font-size:10px;color:var(--muted);letter-spacing:3px;text-transform:uppercase;
+  font-family:var(--sans);margin-top:4px}
+.ts-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 0;border-bottom:1px solid rgba(26,32,48,.6);font-size:11px}
+.ts-row:last-child{border-bottom:none}
+.ts-name{color:var(--text);font-family:var(--sans);font-weight:500;font-size:13px}
+.ts-nums{display:flex;gap:16px;align-items:center}
+.ts-del{color:var(--red);font-size:10px}
+.ts-sav{color:var(--green);font-weight:700}
+.ts-bar-wrap{margin-top:14px;border-top:1px solid var(--border);padding-top:14px}
+.ts-bar-row{margin-bottom:10px}
+.ts-bar-lbl{display:flex;justify-content:space-between;margin-bottom:4px;font-size:10px;color:var(--muted)}
+.ts-bar{height:8px;background:var(--border);border-radius:1px;overflow:hidden}
+.ts-bar-fill{height:100%;border-radius:1px;transition:width 1.5s ease}
+
+/* TOOLTIP */
+#tt{position:fixed;z-index:1000;background:#111a24;border:1px solid var(--amber);
+  padding:8px 12px;pointer-events:none;font-size:11px;line-height:1.7;display:none;
+  max-width:200px;box-shadow:0 4px 20px rgba(0,0,0,.8)}
+#tt .ttn{color:var(--amber);font-family:var(--sans);font-size:14px;font-weight:700}
+
+/* SECTION LABEL */
+.sec{background:var(--border);height:1px;margin:0}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#1e2530}
+
+@keyframes pulse{0%,100%{opacity:1;r:6}50%{opacity:.4;r:10}}
+@keyframes conflictFlash{0%,100%{opacity:0}50%{opacity:1}}
+@keyframes blink{50%{opacity:.2}}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Rail<span>Flow</span> <span style="font-size:11px;font-weight:300;color:var(--muted);letter-spacing:2px">SMART TRACK & PLATFORM MAPPING</span></div>
+  <div class="hstats">
+    <div class="hstat"><strong id="sh-trains">6</strong>TRAINS</div>
+    <div class="hstat r"><strong id="sh-conflicts">4</strong>CONFLICTS</div>
+    <div class="hstat g"><strong id="sh-saved">0</strong>RESOLVED</div>
+    <div class="hstat a"><strong id="sh-tsaved">27</strong>MIN SAVED</div>
+    <div class="simclock"><small>SIM TIME</small><span id="sim-clock">6:00 AM</span></div>
+  </div>
+</header>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <button class="btn play" id="btn-play" onclick="togglePlay()">▶ PLAY</button>
+  <button class="btn stop" onclick="resetSim()">↺ RESET</button>
+  <span class="speed-label">SPEED:</span>
+  <button class="btn active" id="sp-slow"   onclick="setSpeed('slow')">0.5×</button>
+  <button class="btn"        id="sp-normal" onclick="setSpeed('normal')">1×</button>
+  <button class="btn"        id="sp-fast"   onclick="setSpeed('fast')">3×</button>
+  <button class="btn"        id="sp-ultra"  onclick="setSpeed('ultra')">8×</button>
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+    <div class="tl-cursor" id="tl-cursor" style="display:none"></div>
+  </div>
+  <span class="progress-pct" id="progress-pct">0%</span>
+  <span class="phase-badge" id="phase-badge"
+    style="background:rgba(74,158,255,.15);color:var(--blue);border:1px solid rgba(74,158,255,.3)">
+    READY
+  </span>
+</div>
+
+<!-- MAIN: MAP + EVENT LOG -->
+<div class="main-grid">
+  <div class="panel">
+    <div class="ptitle">Live Station Network — Animated Routing</div>
+    <svg id="map-svg" viewBox="0 0 700 480"></svg>
+  </div>
+  <div class="panel">
+    <div class="ptitle">Real-Time Event Log</div>
+    <div id="event-log"></div>
+  </div>
+</div>
+
+<!-- TRAIN STATUS CARDS -->
+<div class="status-row" id="status-row"></div>
+
+<div class="sec"></div>
+
+<!-- BOTTOM: PLATFORM TIMELINE + TIME SAVED -->
+<div class="bottom-grid">
+  <div class="panel">
+    <div class="ptitle">Platform Occupancy Timeline</div>
+    <div class="tl-wrap" id="tl-wrap"></div>
+  </div>
+  <div class="panel">
+    <div class="ptitle">Time Saved — RailFlow Impact Analysis</div>
+    <div class="tsaved" id="tsaved"></div>
+  </div>
+</div>
+
+<div id="tt"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  SIMULATION DATA
+// ═══════════════════════════════════════════════════════════
+const BASE_H = 6, BASE_M = 0;
+const SIM_END = 80; // simulation ends at 80 minutes
+
+function toClk(mins) {
+  const t = BASE_H*60 + BASE_M + Math.round(mins);
+  const h = Math.floor(t/60)%24, m = t%60;
+  const per = h<12?'AM':'PM', dh = h%12||12;
+  return `${dh}:${m<10?'0':''}${m} ${per}`;
+}
+
+// Station node positions in SVG (viewBox 0 0 700 480)
+// sx = 60 + (x/100)*580,  sy = 25 + (y/100)*430
+const NODES = [
+  {id:0, name:'Main Station',   x:350, y:240},
+  {id:1, name:'North Junction', x:350, y:132},
+  {id:2, name:'South Junction', x:350, y:348},
+  {id:3, name:'East Junction',  x:495, y:240},
+  {id:4, name:'West Bypass',    x:205, y:240},
+  {id:5, name:'North Entry',    x:350, y:45 },
+  {id:6, name:'South Entry',    x:350, y:435},
+  {id:7, name:'East Entry',     x:611, y:240},
+];
+
+const EDGES = [
+  {u:5,v:1,w:8}, {u:6,v:2,w:9}, {u:7,v:3,w:6},
+  {u:1,v:0,w:5}, {u:2,v:0,w:6}, {u:3,v:0,w:4}, {u:4,v:0,w:7},
+  {u:1,v:4,w:10},{u:2,v:4,w:11},{u:3,v:1,w:8},
+];
+
+const COLORS = ['#f5a623','#4a9eff','#39d353','#ff6b6b','#c084fc','#34d4c3'];
+
+// Train journey data (precomputed from C++ backend output)
+const TRAINS_DATA = [
+  {
+    id:1, name:'Rajdhani-12', speed:110, distance:77,
+    priority:'HIGH', color:COLORS[0],
+    source:5, route:[5,1,0],
+    eta_mins:42, arrival_mins:42, departure_mins:52,
+    arrival_time:'6:42 AM', departure_time:'6:52 AM',
+    platform:1, rerouted:false,
+    route_cost:13,
+    // Departs source at 42-13=29, no wait
+    depart_source:29, wait_duration:0,
+    conflict_info:'Conflicts with Express-07 on T5-1 @ 6:35-6:37 AM',
+  },
+  {
+    id:2, name:'Shatabdi-04', speed:90, distance:63,
+    priority:'HIGH', color:COLORS[1],
+    source:6, route:[6,2,0],
+    eta_mins:42, arrival_mins:42, departure_mins:52,
+    arrival_time:'6:42 AM', departure_time:'6:52 AM',
+    platform:2, rerouted:false,
+    route_cost:15,
+    depart_source:27, wait_duration:0,
+    conflict_info:'Conflicts with Local-19 on T6-2 @ 6:33-6:36 AM',
+  },
+  {
+    id:3, name:'Express-07', speed:70, distance:56,
+    priority:'NORMAL', color:COLORS[2],
+    source:5, route:[5,1,0],
+    eta_mins:48, arrival_mins:53, departure_mins:63,
+    arrival_time:'6:53 AM', departure_time:'7:03 AM',
+    platform:0, rerouted:true,
+    route_cost:13,
+    // Would have departed at 35 (48-13), delayed to 40 (53-13)
+    depart_source:40, wait_duration:5, wait_start:35,
+    conflict_info:'DELAYED 5 min — conflict with Rajdhani-12 on T5-1',
+  },
+  {
+    id:4, name:'Local-19', speed:50, distance:40,
+    priority:'LOW', color:COLORS[3],
+    source:6, route:[6,2,0],
+    eta_mins:48, arrival_mins:54, departure_mins:64,
+    arrival_time:'6:54 AM', departure_time:'7:04 AM',
+    platform:3, rerouted:true,
+    route_cost:15,
+    // Would have departed at 33 (48-15), delayed to 39 (54-15)
+    depart_source:39, wait_duration:6, wait_start:33,
+    conflict_info:'DELAYED 6 min — conflict with Shatabdi-04 on T6-2',
+  },
+  {
+    id:5, name:'Intercity-22', speed:100, distance:60,
+    priority:'HIGH', color:COLORS[4],
+    source:7, route:[7,3,0],
+    eta_mins:36, arrival_mins:36, departure_mins:46,
+    arrival_time:'6:36 AM', departure_time:'6:46 AM',
+    platform:0, rerouted:false,
+    route_cost:10,
+    depart_source:26, wait_duration:0,
+    conflict_info:'',
+  },
+  {
+    id:6, name:'Freight-31', speed:40, distance:42,
+    priority:'LOW', color:COLORS[5],
+    source:7, route:[7,3,0],
+    eta_mins:63, arrival_mins:63, departure_mins:73,
+    arrival_time:'7:03 AM', departure_time:'7:13 AM',
+    platform:2, rerouted:false,
+    route_cost:10,
+    depart_source:53, wait_duration:0,
+    conflict_info:'',
+  },
+];
+
+const CONFLICTS_DATA = [
+  {a:1,b:3,track:'T5-1',ts:35,te:37,edge:{u:5,v:1}},
+  {a:2,b:4,track:'T6-2',ts:33,te:36,edge:{u:6,v:2}},
+];
+
+const PLATFORMS_DATA = [
+  {id:0,name:'Platform-1',trains:[
+    {tid:5,arrive_mins:36,depart_mins:46,arrive:'6:36 AM',depart:'6:46 AM'},
+    {tid:3,arrive_mins:53,depart_mins:63,arrive:'6:53 AM',depart:'7:03 AM'},
+  ]},
+  {id:1,name:'Platform-2',trains:[
+    {tid:1,arrive_mins:42,depart_mins:52,arrive:'6:42 AM',depart:'6:52 AM'},
+  ]},
+  {id:2,name:'Platform-3',trains:[
+    {tid:2,arrive_mins:42,depart_mins:52,arrive:'6:42 AM',depart:'6:52 AM'},
+    {tid:6,arrive_mins:63,depart_mins:73,arrive:'7:03 AM',depart:'7:13 AM'},
+  ]},
+  {id:3,name:'Platform-4',trains:[
+    {tid:4,arrive_mins:54,depart_mins:64,arrive:'6:54 AM',depart:'7:04 AM'},
+  ]},
+];
+
+// Time Saved Analysis
+// Without RailFlow: conflict → emergency signal block → ~15 min avg delay
+// With RailFlow: preventive ~5-6 min delay
+const TIME_SAVED = [
+  {name:'Express-07',  color:COLORS[2], delay_with:5,  delay_without:18, saved:13, orig:'6:48 AM', actual:'6:53 AM'},
+  {name:'Local-19',    color:COLORS[3], delay_with:6,  delay_without:21, saved:15, orig:'6:48 AM', actual:'6:54 AM'},
+];
+const TOTAL_SAVED = 28;
+
+// ═══════════════════════════════════════════════════════════
+//  SIMULATION STATE
+// ═══════════════════════════════════════════════════════════
+let simTime = 0;
+let playing = false;
+let lastTs = null;
+let speedMs = 800; // ms per sim-minute (0.5x default)
+const SPEEDS = {slow:800, normal:400, fast:130, ultra:50};
+
+// Event log dedup
+const loggedEvents = new Set();
+
+// Conflict flash state
+const conflictFlash = {}; // track_id -> end_time
+
+// Resolved conflicts count
+let resolvedCount = 0;
+
+// ═══════════════════════════════════════════════════════════
+//  TRAIN POSITION CALCULATION
+// ═══════════════════════════════════════════════════════════
+function getEdgeWeight(u, v) {
+  for (const e of EDGES) if ((e.u===u&&e.v===v)||(e.u===v&&e.v===u)) return e.w;
+  return 0;
+}
+
+function getTrainState(t, simTime) {
+  // Before train appears
+  if (simTime < (t.rerouted ? t.wait_start : t.depart_source) - 0.5) {
+    return {status:'pending', x:NODES[t.source].x, y:NODES[t.source].y};
+  }
+
+  // Waiting at source (delayed trains)
+  if (t.rerouted && simTime >= t.wait_start && simTime < t.depart_source) {
+    const remaining = t.depart_source - simTime;
+    return {
+      status:'waiting', x:NODES[t.source].x, y:NODES[t.source].y,
+      waitRemaining: remaining,
+      waitProgress: (simTime - t.wait_start) / t.wait_duration
+    };
+  }
+
+  // Arrived at destination
+  if (simTime >= t.arrival_mins) {
+    return {status:'arrived', x:NODES[0].x, y:NODES[0].y};
+  }
+
+  // Traveling along route
+  let elapsed = simTime - t.depart_source;
+  for (let i = 0; i < t.route.length - 1; i++) {
+    const u = t.route[i], v = t.route[i+1];
+    const w = getEdgeWeight(u, v);
+    if (elapsed <= w) {
+      const progress = elapsed / w;
+      const nx1 = NODES[u].x, ny1 = NODES[u].y;
+      const nx2 = NODES[v].x, ny2 = NODES[v].y;
+      return {
+        status:'moving',
+        x: nx1 + (nx2-nx1)*progress,
+        y: ny1 + (ny2-ny1)*progress,
+        from:u, to:v, progress
+      };
+    }
+    elapsed -= w;
+  }
+  return {status:'arrived', x:NODES[0].x, y:NODES[0].y};
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SVG GRAPH RENDERING
+// ═══════════════════════════════════════════════════════════
+function buildStaticGraph() {
+  const svg = document.getElementById('map-svg');
+  let html = `<defs>
+    <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow2"><feGaussianBlur stdDeviation="2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <radialGradient id="mainGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f5a62320"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+  </defs>`;
+
+  // Background grid
+  for(let x=0;x<=700;x+=70) html+=`<line x1="${x}" y1="0" x2="${x}" y2="480" stroke="#0d1520" stroke-width="1"/>`;
+  for(let y=0;y<=480;y+=48) html+=`<line x1="0" y1="${y}" x2="700" y2="${y}" stroke="#0d1520" stroke-width="1"/>`;
+
+  // Static edges
+  const seen = new Set();
+  EDGES.forEach(e=>{
+    const key=`${Math.min(e.u,e.v)}-${Math.max(e.u,e.v)}`;
+    if(seen.has(key))return; seen.add(key);
+    const n1=NODES[e.u], n2=NODES[e.v];
+    html+=`<line id="edge-${e.u}-${e.v}" x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}"
+             stroke="#1a2535" stroke-width="2.5" stroke-linecap="round"/>`;
+    // Conflict flash overlay
+    html+=`<line id="flash-${e.u}-${e.v}" x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}"
+             stroke="#ff4545" stroke-width="5" stroke-linecap="round" opacity="0"/>`;
+    // Edge label
+    const mx=(n1.x+n2.x)/2+4, my=(n1.y+n2.y)/2-4;
+    html+=`<text x="${mx}" y="${my}" fill="#2a3848" font-size="9" font-family="Share Tech Mono">${e.w}m</text>`;
+  });
+
+  // Train route lines (colored, drawn per train)
+  TRAINS_DATA.forEach((t,ti)=>{
+    for(let i=0;i<t.route.length-1;i++){
+      const u=t.route[i],v=t.route[i+1];
+      const n1=NODES[u],n2=NODES[v];
+      const off=(ti-2.5)*2.5;
+      html+=`<line x1="${n1.x+off}" y1="${n1.y+off}" x2="${n2.x+off}" y2="${n2.y+off}"
+               stroke="${t.color}" stroke-width="1.5" opacity="0.25"
+               stroke-dasharray="${t.rerouted?'4,4':'none'}"/>`;
+    }
+  });
+
+  // Stations
+  NODES.forEach(n=>{
+    const isMain = n.id===0;
+    const r = isMain?20:13;
+    const sc = isMain?'#f5a623':'#2a3a52';
+    const sw = isMain?2:1.5;
+    if(isMain){
+      html+=`<circle cx="${n.x}" cy="${n.y}" r="35" fill="url(#mainGlow)"/>`;
+    }
+    html+=`<circle cx="${n.x}" cy="${n.y}" r="${r}" fill="#0d1220" stroke="${sc}" stroke-width="${sw}" ${isMain?'filter="url(#glow)"':''}/>`;
+    // Node ID
+    html+=`<text x="${n.x}" y="${n.y+4}" fill="${isMain?'#f5a623':'#8899bb'}"
+             font-size="${isMain?11:9}" font-family="Share Tech Mono" text-anchor="middle">${n.id}</text>`;
+    // Name
+    const words=n.name.split(' ');
+    const ly=n.y+r+14;
+    html+=`<text x="${n.x}" y="${ly}" fill="${isMain?'#f5a623':'#5a7090'}"
+             font-size="${isMain?10:8}" font-family="Barlow Condensed"
+             font-weight="${isMain?700:400}" letter-spacing="1" text-anchor="middle">${words[0]}</text>`;
+    if(words.length>1)
+      html+=`<text x="${n.x}" y="${ly+11}" fill="${isMain?'#c87010':'#3a5070'}"
+               font-size="8" font-family="Barlow Condensed" letter-spacing="1" text-anchor="middle">${words.slice(1).join(' ')}</text>`;
+  });
+
+  // Platform boxes next to Main Station
+  for(let i=0;i<4;i++){
+    const px=NODES[0].x-80, py=NODES[0].y-30+i*20;
+    html+=`<rect x="${px}" y="${py}" width="50" height="16" rx="1"
+             fill="#0d1825" stroke="#1a2a3a" stroke-width="1"/>
+           <text x="${px+25}" y="${py+11}" fill="#2a4a6a" font-size="8"
+             font-family="Share Tech Mono" text-anchor="middle">P${i+1}</text>`;
+  }
+  html+=`<text x="${NODES[0].x-55}" y="${NODES[0].y-38}" fill="#2a4a6a" font-size="8"
+             font-family="Barlow Condensed" letter-spacing="1">PLATFORMS</text>`;
+
+  // Train dots (dynamic, will be updated)
+  TRAINS_DATA.forEach(t=>{
+    html+=`<g id="train-${t.id}">
+      <circle id="tc-${t.id}" cx="${NODES[t.source].x}" cy="${NODES[t.source].y}"
+        r="7" fill="${t.color}" opacity="0.15" filter="url(#glow2)"/>
+      <circle id="td-${t.id}" cx="${NODES[t.source].x}" cy="${NODES[t.source].y}"
+        r="5" fill="${t.color}" stroke="#000" stroke-width="1"/>
+      <text id="tl-${t.id}" x="${NODES[t.source].x}" y="${NODES[t.source].y-10}"
+        fill="${t.color}" font-size="9" font-family="Barlow Condensed" font-weight="700"
+        text-anchor="middle">${t.id}</text>
+      <g id="tw-${t.id}" opacity="0">
+        <rect id="twb-${t.id}" x="0" y="0" width="80" height="20" rx="2"
+          fill="#1a1200" stroke="#f5a623" stroke-width="1"/>
+        <text id="twt-${t.id}" x="40" y="14" fill="#f5a623" font-size="9"
+          font-family="Share Tech Mono" text-anchor="middle">WAIT 0.0m</text>
+      </g>
+    </g>`;
+  });
+
+  // Conflict warning overlay
+  CONFLICTS_DATA.forEach(c=>{
+    const n1=NODES[c.edge.u], n2=NODES[c.edge.v];
+    const mx=(n1.x+n2.x)/2, my=(n1.y+n2.y)/2;
+    html+=`<g id="conf-${c.a}-${c.b}" opacity="0">
+      <circle cx="${mx}" cy="${my}" r="18" fill="none" stroke="#ff4545" stroke-width="2" stroke-dasharray="4,4"/>
+      <text x="${mx}" y="${my-22}" fill="#ff4545" font-size="9" font-family="Barlow Condensed"
+        font-weight="700" letter-spacing="1" text-anchor="middle">⚠ CONFLICT</text>
+    </g>`;
+  });
+
+  // Legend
+  TRAINS_DATA.forEach((t,i)=>{
+    const ly = 460 - (TRAINS_DATA.length-i)*16;
+    html+=`<circle cx="14" cy="${ly-4}" r="4" fill="${t.color}" filter="url(#glow2)"/>
+           <text x="24" y="${ly}" fill="${t.color}" font-size="9" font-family="Share Tech Mono">${t.id}:${t.name}${t.rerouted?' ↺':''}</text>`;
+  });
+
+  svg.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ANIMATION UPDATE
+// ═══════════════════════════════════════════════════════════
+function updateTrains() {
+  TRAINS_DATA.forEach(t=>{
+    const state = getTrainState(t, simTime);
+    const dot  = document.getElementById(`td-${t.id}`);
+    const glow = document.getElementById(`tc-${t.id}`);
+    const lbl  = document.getElementById(`tl-${t.id}`);
+    const wg   = document.getElementById(`tw-${t.id}`);
+    const wb   = document.getElementById(`twb-${t.id}`);
+    const wt   = document.getElementById(`twt-${t.id}`);
+    if(!dot)return;
+
+    if(state.status==='pending'){
+      dot.setAttribute('opacity','0.15');
+      glow.setAttribute('opacity','0');
+      lbl.setAttribute('opacity','0.2');
+      wg.setAttribute('opacity','0');
+    } else if(state.status==='waiting'){
+      dot.setAttribute('cx', state.x); dot.setAttribute('cy', state.y);
+      glow.setAttribute('cx', state.x); glow.setAttribute('cy', state.y);
+      lbl.setAttribute('x', state.x);  lbl.setAttribute('y', state.y-10);
+      dot.setAttribute('opacity','1');
+      glow.setAttribute('opacity', 0.3+Math.sin(Date.now()/300)*0.3);
+      glow.setAttribute('r','12');
+      lbl.setAttribute('opacity','1');
+      // Show wait bubble
+      wg.setAttribute('opacity','1');
+      const bx = state.x-40, by = state.y-38;
+      wb.setAttribute('x', bx); wb.setAttribute('y', by);
+      wt.setAttribute('x', state.x); wt.setAttribute('y', by+14);
+      wt.textContent = `WAIT ${state.waitRemaining.toFixed(1)}m`;
+    } else if(state.status==='moving'){
+      dot.setAttribute('cx', state.x); dot.setAttribute('cy', state.y);
+      glow.setAttribute('cx', state.x); glow.setAttribute('cy', state.y);
+      lbl.setAttribute('x', state.x);  lbl.setAttribute('y', state.y-10);
+      dot.setAttribute('opacity','1'); glow.setAttribute('opacity','0.4');
+      glow.setAttribute('r','8');
+      lbl.setAttribute('opacity','1');
+      wg.setAttribute('opacity','0');
+    } else if(state.status==='arrived'){
+      // Park at platform visually
+      const px=NODES[0].x-55, py=NODES[0].y-22+t.platform*20;
+      dot.setAttribute('cx', px); dot.setAttribute('cy', py);
+      glow.setAttribute('cx', px); glow.setAttribute('cy', py);
+      lbl.setAttribute('x', px);  lbl.setAttribute('y', py-8);
+      dot.setAttribute('opacity','0.7'); glow.setAttribute('opacity','0.2');
+      glow.setAttribute('r','8');
+      lbl.setAttribute('opacity','0.7');
+      wg.setAttribute('opacity','0');
+    }
+  });
+}
+
+function updateConflictFlash() {
+  CONFLICTS_DATA.forEach(c=>{
+    const active = simTime >= c.ts-1 && simTime <= c.te+1;
+    const el = document.getElementById(`conf-${c.a}-${c.b}`);
+    const fe1 = document.getElementById(`flash-${c.edge.u}-${c.edge.v}`);
+    const fe2 = document.getElementById(`flash-${c.edge.v}-${c.edge.u}`);
+    if(!el)return;
+    if(active){
+      const pulse = 0.4+Math.sin(Date.now()/200)*0.4;
+      el.setAttribute('opacity', pulse);
+      if(fe1) fe1.setAttribute('opacity', pulse*0.7);
+      if(fe2) fe2.setAttribute('opacity', pulse*0.7);
+    } else {
+      el.setAttribute('opacity','0');
+      if(fe1) fe1.setAttribute('opacity','0');
+      if(fe2) fe2.setAttribute('opacity','0');
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TRAIN STATUS CARDS
+// ═══════════════════════════════════════════════════════════
+function buildStatusCards() {
+  const row = document.getElementById('status-row');
+  row.innerHTML = TRAINS_DATA.map((t,i)=>`
+    <div class="tcard" id="card-${t.id}" style="--tc:${t.color}">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${t.color}"></div>
+      <div class="tc-name" style="color:${t.color}">${t.name}</div>
+      <div class="tc-stat">PRIORITY</div>
+      <div class="tc-val">${t.priority}</div>
+      <div class="tc-stat">ETA / ARRIVAL</div>
+      <div class="tc-val" style="color:var(--amber)">${t.arrival_time}</div>
+      <div id="card-badge-${t.id}" class="tc-badge badge-pending">PENDING</div>
+    </div>
+  `).join('');
+}
+
+function updateStatusCards() {
+  TRAINS_DATA.forEach(t=>{
+    const badge = document.getElementById(`card-badge-${t.id}`);
+    if(!badge)return;
+    const state = getTrainState(t, simTime);
+    if(state.status==='pending'){
+      badge.className='tc-badge badge-pending'; badge.textContent='PENDING';
+    } else if(state.status==='waiting'){
+      badge.className='tc-badge badge-waiting';
+      badge.textContent=`WAIT ${state.waitRemaining.toFixed(0)}m`;
+    } else if(state.status==='moving'){
+      badge.className='tc-badge badge-moving'; badge.textContent='EN ROUTE';
+    } else if(state.status==='arrived'){
+      badge.className='tc-badge badge-arrived'; badge.textContent='ARRIVED';
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EVENT LOG
+// ═══════════════════════════════════════════════════════════
+function logEvent(type, msg, timeStr) {
+  const key = `${type}-${msg}`;
+  if(loggedEvents.has(key)) return;
+  loggedEvents.add(key);
+
+  const el = document.getElementById('event-log');
+  const div = document.createElement('div');
+  div.className = `event ${type}`;
+  div.innerHTML = `<span class="etime">${timeStr || toClk(simTime)}</span>${msg}`;
+  el.insertBefore(div, el.firstChild);
+
+  // Update resolved count
+  if(type==='success'){
+    resolvedCount++;
+    document.getElementById('sh-saved').textContent = resolvedCount;
+  }
+}
+
+function checkEvents() {
+  const t = simTime;
+
+  // Train departures
+  TRAINS_DATA.forEach(tr=>{
+    if(t >= tr.depart_source && t < tr.depart_source+0.5)
+      logEvent('info',`<b style="color:${tr.color}">${tr.name}</b> departed from ${NODES[tr.source].name}`);
+  });
+
+  // Conflict detections
+  CONFLICTS_DATA.forEach(c=>{
+    const ta = TRAINS_DATA.find(x=>x.id===c.a);
+    const tb = TRAINS_DATA.find(x=>x.id===c.b);
+    if(t >= c.ts && t < c.ts+0.5)
+      logEvent('danger',`⚠ CONFLICT detected on <b>${c.track}</b> — <span style="color:${ta.color}">${ta.name}</span> vs <span style="color:${tb.color}">${tb.name}</span>`);
+  });
+
+  // Wait starts
+  TRAINS_DATA.filter(tr=>tr.rerouted).forEach(tr=>{
+    if(t >= tr.wait_start && t < tr.wait_start+0.5)
+      logEvent('warn',`<span style="color:${tr.color}">${tr.name}</span> held at ${NODES[tr.source].name} — conflict resolution in progress`);
+  });
+
+  // Conflict resolved / train released
+  TRAINS_DATA.filter(tr=>tr.rerouted).forEach(tr=>{
+    if(t >= tr.depart_source && t < tr.depart_source+0.5)
+      logEvent('success',`✓ Conflict resolved — <span style="color:${tr.color}">${tr.name}</span> cleared to depart (delay: ${tr.wait_duration} min)`);
+  });
+
+  // Arrivals
+  TRAINS_DATA.forEach(tr=>{
+    if(t >= tr.arrival_mins && t < tr.arrival_mins+0.5)
+      logEvent('info',`<b style="color:${tr.color}">${tr.name}</b> arrived at Main Station → Platform-${tr.platform+1} at <b>${tr.arrival_time}</b>`);
+  });
+
+  // Simulation phases
+  if(t >= 0   && t < 0.5)  logEvent('info','🚂 Simulation started — monitoring 6 inbound trains','6:00 AM');
+  if(t >= 33  && t < 33.5) logEvent('warn','⚡ RailFlow detected approaching conflict window on South corridor');
+  if(t >= 35  && t < 35.5) logEvent('warn','⚡ RailFlow detected approaching conflict window on North corridor');
+  if(t >= 53  && t < 53.5) logEvent('success','✓ All conflicts resolved — schedule optimized');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PLATFORM TIMELINE
+// ═══════════════════════════════════════════════════════════
+const TL_MIN=25, TL_MAX=80, TL_RANGE=TL_MAX-TL_MIN;
+
+function buildTimeline() {
+  const wrap = document.getElementById('tl-wrap');
+  const tmap = {}; TRAINS_DATA.forEach(t=>tmap[t.id]=t);
+
+  let html = `<div class="tl-hdr" style="position:relative">`;
+  for(let tm=TL_MIN;tm<=TL_MAX;tm+=5){
+    const pct=((tm-TL_MIN)/TL_RANGE*100).toFixed(1);
+    html+=`<span style="position:absolute;left:${pct}%;transform:translateX(-50%)">${toClk(tm)}</span>`;
+  }
+  html+=`</div>`;
+
+  PLATFORMS_DATA.forEach(p=>{
+    html+=`<div class="tl-row"><div class="tl-lbl">${p.name}</div>
+      <div class="tl-track" id="tlt-${p.id}">
+        <div class="tl-cursor" id="tlc-${p.id}" style="left:0%"></div>`;
+    for(let tm=TL_MIN;tm<=TL_MAX;tm+=5){
+      const pct=((tm-TL_MIN)/TL_RANGE*100).toFixed(1);
+      html+=`<div class="tl-tick" style="left:${pct}%"></div>`;
+    }
+    p.trains.forEach(r=>{
+      const tr=tmap[r.tid];
+      const left=Math.max(0,((r.arrive_mins-TL_MIN)/TL_RANGE*100)).toFixed(1);
+      const width=((r.depart_mins-r.arrive_mins)/TL_RANGE*100).toFixed(1);
+      html+=`<div class="tl-block" id="tlb-${p.id}-${r.tid}"
+               style="left:${left}%;width:${width}%;
+                      background:${tr.color}22;border:1px solid ${tr.color}66;
+                      color:${tr.color};opacity:0.3;transition:opacity 0.5s"
+               title="${tr.name}: ${r.arrive} – ${r.depart}">
+               ${tr.name}
+             </div>`;
+    });
+    html+=`</div></div>`;
+  });
+
+  wrap.innerHTML = html;
+}
+
+function updateTimeline() {
+  // Move cursor
+  const pct = Math.min(100,((simTime-TL_MIN)/TL_RANGE*100)).toFixed(1);
+  PLATFORMS_DATA.forEach(p=>{
+    const cur=document.getElementById(`tlc-${p.id}`);
+    if(cur) cur.style.left=`${Math.max(0,pct)}%`;
+
+    // Light up blocks when train arrives
+    p.trains.forEach(r=>{
+      const blk=document.getElementById(`tlb-${p.id}-${r.tid}`);
+      if(!blk)return;
+      if(simTime>=r.arrive_mins) blk.style.opacity='1';
+      else if(simTime>=r.arrive_mins-1) blk.style.opacity='0.6';
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TIME SAVED SECTION
+// ═══════════════════════════════════════════════════════════
+function buildTimeSaved() {
+  const el = document.getElementById('tsaved');
+  const maxDelay = Math.max(...TIME_SAVED.map(t=>t.delay_without));
+
+  let html = `
+  <div class="ts-hero">
+    <span class="ts-big" id="ts-hero-num">0</span>
+    <div class="ts-label">Total Minutes Saved</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--sans)">
+      vs estimated delay without RailFlow intervention
+    </div>
+  </div>`;
+
+  TIME_SAVED.forEach(t=>{
+    html+=`
+    <div class="ts-row">
+      <div>
+        <div class="ts-name" style="color:${t.color}">${t.name}</div>
+        <div style="font-size:9px;color:var(--muted)">
+          Original ETA: ${t.orig} → Actual: ${t.actual}
+        </div>
+      </div>
+      <div class="ts-nums">
+        <div class="ts-del">+${t.delay_with}m actual</div>
+        <div class="ts-sav">saved ${t.saved}m</div>
+      </div>
+    </div>`;
+  });
+
+  html+=`<div class="ts-bar-wrap">`;
+  TIME_SAVED.forEach(t=>{
+    const without_pct=(t.delay_without/maxDelay*100).toFixed(0);
+    const with_pct=(t.delay_with/maxDelay*100).toFixed(0);
+    html+=`
+    <div class="ts-bar-row">
+      <div class="ts-bar-lbl"><span style="color:${t.color}">${t.name}</span><span></span></div>
+      <div style="margin-bottom:3px">
+        <div style="font-size:9px;color:var(--muted);margin-bottom:2px">Without RailFlow: ~${t.delay_without} min delay</div>
+        <div class="ts-bar"><div class="ts-bar-fill" style="width:0%;background:var(--red)" id="bar-without-${t.name.replace(/\W/g,'')}"></div></div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--muted);margin-bottom:2px">With RailFlow: ${t.delay_with} min delay</div>
+        <div class="ts-bar"><div class="ts-bar-fill" style="width:0%;background:var(--green)" id="bar-with-${t.name.replace(/\W/g,'')}"></div></div>
+      </div>
+    </div>`;
+  });
+
+  html+=`<div style="margin-top:12px;padding:10px;background:rgba(57,211,83,.06);border:1px solid rgba(57,211,83,.2);border-radius:2px">
+    <div style="font-family:var(--sans);font-size:11px;color:var(--green);font-weight:700;letter-spacing:1px">HOW RAILFLOW SAVES TIME</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.7">
+      Without system: signal block → emergency brake → 15–20 min clearance delay<br>
+      With RailFlow: conflict predicted 10+ min early → preventive 5–6 min delay<br>
+      <span style="color:var(--green)">Net saving: ~13–15 min per affected train</span>
+    </div>
+  </div></div>`;
+
+  el.innerHTML = html;
+}
+
+function updateTimeSaved() {
+  // Animate bars and hero counter when simulation reaches relevant point
+  const allArrived = TRAINS_DATA.every(t=>simTime>=t.arrival_mins);
+  const pct = Math.min(1, simTime/SIM_END);
+
+  const hero = document.getElementById('ts-hero-num');
+  if(hero) hero.textContent = Math.round(TOTAL_SAVED * Math.min(1, (simTime-40)/25));
+
+  TIME_SAVED.forEach(t=>{
+    const key = t.name.replace(/\W/g,'');
+    const bw = document.getElementById(`bar-without-${key}`);
+    const bg = document.getElementById(`bar-with-${key}`);
+    const maxDelay = Math.max(...TIME_SAVED.map(x=>x.delay_without));
+    if(bw && simTime > 33) bw.style.width = (t.delay_without/maxDelay*100)+'%';
+    if(bg && simTime > 40) bg.style.width = (t.delay_with/maxDelay*100)+'%';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SIMULATION CLOCK & CONTROLS
+// ═══════════════════════════════════════════════════════════
+function updateHeader() {
+  document.getElementById('sim-clock').textContent = toClk(simTime);
+
+  const pct = (simTime/SIM_END*100).toFixed(0);
+  document.getElementById('progress-bar').style.width = pct+'%';
+  document.getElementById('progress-pct').textContent = pct+'%';
+
+  // Phase badge
+  const pb = document.getElementById('phase-badge');
+  if(simTime<26){
+    pb.style.cssText='background:rgba(74,158,255,.15);color:var(--blue);border:1px solid rgba(74,158,255,.3)';
+    pb.textContent='MONITORING';
+  } else if(simTime<40){
+    pb.style.cssText='background:rgba(255,69,69,.15);color:var(--red);border:1px solid rgba(255,69,69,.3)';
+    pb.textContent='⚠ CONFLICT';
+  } else if(simTime<55){
+    pb.style.cssText='background:rgba(245,166,35,.15);color:var(--amber);border:1px solid rgba(245,166,35,.3)';
+    pb.textContent='RESOLVING';
+  } else {
+    pb.style.cssText='background:rgba(57,211,83,.15);color:var(--green);border:1px solid rgba(57,211,83,.3)';
+    pb.textContent='✓ RESOLVED';
+  }
+}
+
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('btn-play');
+  btn.textContent = playing ? '⏸ PAUSE' : '▶ PLAY';
+  btn.classList.toggle('active', playing);
+  if(playing) requestAnimationFrame(tick);
+}
+
+function resetSim() {
+  playing = false;
+  simTime = 0;
+  lastTs = null;
+  loggedEvents.clear();
+  resolvedCount = 0;
+  document.getElementById('btn-play').textContent='▶ PLAY';
+  document.getElementById('btn-play').classList.remove('active');
+  document.getElementById('event-log').innerHTML='';
+  document.getElementById('sh-saved').textContent='0';
+  buildTimeline();
+  buildTimeSaved();
+  updateAll();
+}
+
+function setSpeed(s) {
+  speedMs = SPEEDS[s];
+  document.querySelectorAll('[id^="sp-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`sp-${s}`).classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ═══════════════════════════════════════════════════════════
+function tick(ts) {
+  if(!playing) return;
+  if(!lastTs) lastTs = ts;
+  const dt = ts - lastTs; // ms elapsed
+  lastTs = ts;
+  simTime += dt / speedMs; // advance sim time
+  if(simTime >= SIM_END) { simTime = SIM_END; playing = false;
+    document.getElementById('btn-play').textContent='▶ PLAY';
+    document.getElementById('btn-play').classList.remove('active');
+  }
+  updateAll();
+  if(playing) requestAnimationFrame(tick);
+}
+
+function updateAll() {
+  updateTrains();
+  updateConflictFlash();
+  updateStatusCards();
+  updateHeader();
+  updateTimeline();
+  updateTimeSaved();
+  checkEvents();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('load', ()=>{
+  buildStaticGraph();
+  buildStatusCards();
+  buildTimeline();
+  buildTimeSaved();
+  updateAll();
+  // Auto-start after short delay
+  setTimeout(()=>{ togglePlay(); }, 600);
+});
+</script>
+</body>
+</html>
